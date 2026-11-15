@@ -1,17 +1,18 @@
+
 {
-  "_comment": "Ubuntu 24.04 + Dropbear SSH. Standard Wings runtime is non-root; SSH account is container, not root.",
+  "_comment": "Ubuntu 24.04 Dropbear SSH. Standard Wings runtime is non-root; SSH account is container, not root.",
   "meta": {
     "version": "PTDL_v2",
     "update_url": null
   },
   "exported_at": "2026-11-15T00:00:00+00:00",
-  "name": "Ubuntu 24.04 (Dropbear SSH)",
+  "name": "Ubuntu 24.04 Dropbear SSH",
   "author": "noniko9901@gmail.com",
   "description": "Ubuntu 24.04 LTS with Dropbear SSH public-key authentication for Pterodactyl.",
   "features": null,
   "docker_images": {
-  "ghcr.io/noniko9901/ubuntu-server-pterodactyl:latest": "Ubuntu 24.04 Dropbear"
-},
+    "ghcr.io/noniko9901/ubuntu-server-pterodactyl:latest": "Ubuntu 24.04 Dropbear"
+  },
   "file_denylist": [],
   "startup": "/usr/local/bin/entrypoint.sh",
   "config": {
