@@ -6,7 +6,7 @@
   },
   "exported_at": "2026-11-15T00:00:00+00:00",
   "name": "Ubuntu 24.04 (Dropbear SSH)",
-  "author": "local",
+  "author": "noniko9901@gmail.com",
   "description": "Ubuntu 24.04 LTS with Dropbear SSH public-key authentication for Pterodactyl.",
   "features": null,
   "docker_images": {
