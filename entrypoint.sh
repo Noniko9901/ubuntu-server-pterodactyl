@@ -1,9 +1,10 @@
+
 #!/bin/sh
 set -eu
 
 # ==========================================
 # Ubuntu Multi-Version Pterodactyl
-# SSH server with PRoot
+# SSH + Interactive Panel Console
 # ==========================================
 
 echo "=========================================="
@@ -17,7 +18,10 @@ echo "=========================================="
 : "${SSH_PASSWORD:=}"
 : "${SSH_PUBLIC_KEY:=}"
 
+# ==========================================
 # Validate Ubuntu version
+# ==========================================
+
 case "$UBUNTU_VERSION" in
     20.04|22.04|24.04|26.04)
         ;;
@@ -27,7 +31,10 @@ case "$UBUNTU_VERSION" in
         ;;
 esac
 
+# ==========================================
 # Validate SSH port
+# ==========================================
+
 case "$SERVER_PORT" in
     ''|*[!0-9]*)
         echo "ERROR: Invalid SERVER_PORT"
@@ -40,7 +47,10 @@ if [ "$SERVER_PORT" -lt 1 ] || [ "$SERVER_PORT" -gt 65535 ]; then
     exit 1
 fi
 
-# Validate authentication mode
+# ==========================================
+# Validate SSH authentication
+# ==========================================
+
 case "$SSH_AUTH_MODE" in
     key)
         [ -n "$SSH_PUBLIC_KEY" ] || {
@@ -74,12 +84,10 @@ PROOT="$(command -v proot || true)"
 
 if [ -z "$PROOT" ] || [ ! -x "$PROOT" ]; then
     echo "ERROR: PRoot is not installed!"
-    echo "Install proot in Dockerfile using apk."
     exit 1
 fi
 
 echo "PRoot found: $PROOT"
-"$PROOT" --version || true
 
 # ==========================================
 # Ubuntu root filesystem
@@ -92,7 +100,6 @@ mkdir -p "$HOME"
 if [ ! -f "$ROOTFS/.ptero-ubuntu-version" ] || \
    [ "$(cat "$ROOTFS/.ptero-ubuntu-version")" != "$UBUNTU_VERSION" ]; then
 
-    echo "Ubuntu rootfs missing or version changed."
     echo "Installing Ubuntu ${UBUNTU_VERSION}..."
 
     rm -rf "$ROOTFS"
@@ -106,7 +113,7 @@ if [ ! -x "$ROOTFS/bin/bash" ]; then
 fi
 
 # ==========================================
-# PRoot helper
+# Ubuntu command helper
 # ==========================================
 
 ubuntu() {
@@ -124,17 +131,24 @@ ubuntu() {
 echo "Ubuntu rootfs: $ROOTFS"
 
 # ==========================================
-# Install Dropbear inside Ubuntu
+# Install Dropbear
 # ==========================================
 
-echo "Installing SSH server inside Ubuntu..."
+echo "Checking SSH server..."
 
-ubuntu /usr/bin/env DEBIAN_FRONTEND=noninteractive \
-    /bin/bash -c '
-        apt-get update
-        apt-get install -y --no-install-recommends dropbear ca-certificates passwd
-        rm -rf /var/lib/apt/lists/*
-    '
+if [ ! -x "$ROOTFS/usr/sbin/dropbear" ]; then
+    echo "Installing Dropbear..."
+
+    ubuntu /usr/bin/env DEBIAN_FRONTEND=noninteractive \
+        /bin/bash -c '
+            apt-get update
+            apt-get install -y --no-install-recommends \
+                dropbear \
+                ca-certificates \
+                passwd
+            rm -rf /var/lib/apt/lists/*
+        '
+fi
 
 # ==========================================
 # Configure root password
@@ -182,35 +196,23 @@ if [ ! -s "$ROOTFS/etc/dropbear/dropbear_ed25519_host_key" ]; then
 fi
 
 # ==========================================
-# Configure SSH shell
+# Check SSH executable
 # ==========================================
 
-echo "Configuring root shell..."
-
-# Ensure root has a valid shell.
-if ! grep -q '^root:' "$ROOTFS/etc/passwd"; then
-    echo "ERROR: Root account missing from Ubuntu."
+if [ ! -x "$ROOTFS/usr/sbin/dropbear" ]; then
+    echo "ERROR: Dropbear executable not found!"
     exit 1
 fi
 
 # ==========================================
-# Start SSH
+# Start SSH in background
 # ==========================================
 
-echo "=========================================="
-echo "       UBUNTU VPS READY"
-echo "=========================================="
-echo "Ubuntu: ${UBUNTU_VERSION}"
-echo "SSH user: root"
-echo "SSH port: ${SERVER_PORT}"
-echo "Authentication: ${SSH_AUTH_MODE}"
-echo "=========================================="
+echo "Starting SSH server in background..."
 
 if [ "$SSH_AUTH_MODE" = "key" ]; then
 
-    echo "Starting SSH with public-key authentication..."
-
-    exec "$PROOT" \
+    "$PROOT" \
         -0 \
         -r "$ROOTFS" \
         -w /root \
@@ -223,13 +225,11 @@ if [ "$SSH_AUTH_MODE" = "key" ]; then
         -E \
         -p "$SERVER_PORT" \
         -r /etc/dropbear/dropbear_ed25519_host_key \
-        -s
+        -s &
 
 else
 
-    echo "Starting SSH with password authentication..."
-
-    exec "$PROOT" \
+    "$PROOT" \
         -0 \
         -r "$ROOTFS" \
         -w /root \
@@ -241,27 +241,40 @@ else
         -F \
         -E \
         -p "$SERVER_PORT" \
-        -r /etc/dropbear/dropbear_ed25519_host_key
+        -r /etc/dropbear/dropbear_ed25519_host_key &
 
 fi
 
-echo "Starting SSH server..."
+SSH_PID=$!
 
-if [ "$SSH_AUTH_MODE" = "key" ]; then
-    "$PROOT" -0 -r "$ROOTFS" -w /root \
-        -b /dev -b /proc -b /sys -b /etc/resolv.conf \
-        /usr/sbin/dropbear \
-        -p "$SERVER_PORT" \
-        -r /etc/dropbear/dropbear_ed25519_host_key \
-        -s
+sleep 2
+
+if ! kill -0 "$SSH_PID" 2>/dev/null; then
+    echo "WARNING: SSH process exited. Check Dropbear logs."
+else
+    echo "SSH process started. PID: $SSH_PID"
+fi
+
+# ==========================================
+# Start Ubuntu in Pterodactyl Console
+# ==========================================
+
 echo ""
 echo "=========================================="
-echo "Starting Ubuntu terminal..."
+echo "          UBUNTU VPS READY"
+echo "=========================================="
+echo "Ubuntu version: $UBUNTU_VERSION"
+echo "Console user: root"
+echo "SSH user: root"
+echo "SSH port: $SERVER_PORT"
+echo "Authentication: $SSH_AUTH_MODE"
 echo "=========================================="
 
-export TERM=xterm-256color
+export TERM="${TERM:-xterm-256color}"
 
-exec "$PROOT" -0 \
+# Start interactive Ubuntu shell
+exec "$PROOT" \
+    -0 \
     -r "$ROOTFS" \
     -w /root \
     -b /dev \
@@ -269,11 +282,3 @@ exec "$PROOT" -0 \
     -b /sys \
     -b /etc/resolv.conf \
     /bin/bash --login -i
-
-else
-    "$PROOT" -0 -r "$ROOTFS" -w /root \
-        -b /dev -b /proc -b /sys -b /etc/resolv.conf \
-        /usr/sbin/dropbear \
-        -p "$SERVER_PORT" \
-        -r /etc/dropbear/dropbear_ed25519_host_key
-fi
