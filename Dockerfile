@@ -1,8 +1,12 @@
 
-FROM alpine:3.23
+FROM alpine:3.24
+
+# Enable Alpine community repository
+RUN echo "https://dl-cdn.alpinelinux.org/alpine/v3.24/main" > /etc/apk/repositories \
+    && echo "https://dl-cdn.alpinelinux.org/alpine/v3.24/community" >> /etc/apk/repositories
 
 # Install required packages
-RUN apk add --no-cache \
+RUN apk update && apk add --no-cache \
     bash \
     curl \
     ca-certificates \
@@ -15,10 +19,12 @@ RUN apk add --no-cache \
     procps \
     proot
 
+# Verify PRoot installation
+RUN proot --version
+
 # Create Pterodactyl container user
 RUN adduser -D -h /home/container -s /bin/sh container
 
-# Set working environment
 USER container
 
 ENV HOME=/home/container
@@ -26,12 +32,10 @@ ENV USER=container
 
 WORKDIR /home/container
 
-# Copy startup and Ubuntu installation scripts
+# Copy startup scripts
 COPY --chown=container:container entrypoint.sh /entrypoint.sh
 COPY --chown=container:container install-ubuntu.sh /install-ubuntu.sh
 
-# Set executable permissions
 RUN chmod 0755 /entrypoint.sh /install-ubuntu.sh
 
-# Start container
 CMD ["/bin/sh", "/entrypoint.sh"]
