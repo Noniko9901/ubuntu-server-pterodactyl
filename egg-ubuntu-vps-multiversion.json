@@ -17,7 +17,7 @@
     "files": "{}",
     "startup": "{\"done\":\"Starting root SSH on SERVER_PORT\"}",
     "logs": "{}",
-    "stop": "^C"
+    "stop": "exit"
   },
   "scripts": {
     "installation": {
