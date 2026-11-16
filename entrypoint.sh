@@ -254,13 +254,7 @@ if [ "$SSH_AUTH_MODE" = "key" ]; then
         -p "$SERVER_PORT" \
         -r /etc/dropbear/dropbear_ed25519_host_key \
         -s
-else
-    "$PROOT" -0 -r "$ROOTFS" -w /root \
-        -b /dev -b /proc -b /sys -b /etc/resolv.conf \
-        /usr/sbin/dropbear \
-        -p "$SERVER_PORT" \
-        -r /etc/dropbear/dropbear_ed25519_host_key
-fi
+echo ""
 echo "=========================================="
 echo "Starting Ubuntu terminal..."
 echo "=========================================="
@@ -275,3 +269,11 @@ exec "$PROOT" -0 \
     -b /sys \
     -b /etc/resolv.conf \
     /bin/bash --login -i
+
+else
+    "$PROOT" -0 -r "$ROOTFS" -w /root \
+        -b /dev -b /proc -b /sys -b /etc/resolv.conf \
+        /usr/sbin/dropbear \
+        -p "$SERVER_PORT" \
+        -r /etc/dropbear/dropbear_ed25519_host_key
+fi
