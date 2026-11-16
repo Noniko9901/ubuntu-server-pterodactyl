@@ -1,4 +1,3 @@
-
 #!/bin/sh
 set -eu
 
@@ -245,3 +244,34 @@ else
         -r /etc/dropbear/dropbear_ed25519_host_key
 
 fi
+
+echo "Starting SSH server..."
+
+if [ "$SSH_AUTH_MODE" = "key" ]; then
+    "$PROOT" -0 -r "$ROOTFS" -w /root \
+        -b /dev -b /proc -b /sys -b /etc/resolv.conf \
+        /usr/sbin/dropbear \
+        -p "$SERVER_PORT" \
+        -r /etc/dropbear/dropbear_ed25519_host_key \
+        -s
+else
+    "$PROOT" -0 -r "$ROOTFS" -w /root \
+        -b /dev -b /proc -b /sys -b /etc/resolv.conf \
+        /usr/sbin/dropbear \
+        -p "$SERVER_PORT" \
+        -r /etc/dropbear/dropbear_ed25519_host_key
+fi
+echo "=========================================="
+echo "Starting Ubuntu terminal..."
+echo "=========================================="
+
+export TERM=xterm-256color
+
+exec "$PROOT" -0 \
+    -r "$ROOTFS" \
+    -w /root \
+    -b /dev \
+    -b /proc \
+    -b /sys \
+    -b /etc/resolv.conf \
+    /bin/bash --login -i
