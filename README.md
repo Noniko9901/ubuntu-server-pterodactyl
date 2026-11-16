@@ -1,34 +1,25 @@
-# Ubuntu 24.04 + SSH for Pterodactyl
+# Ubuntu VPS Multi-Version Egg
 
-This is a Pterodactyl-compatible Ubuntu 24.04 Docker image using Dropbear SSH.
+Pterodactyl Egg inspired by ysdragon/Pterodactyl-VPS-Egg, limited to Ubuntu 20.04, 22.04, 24.04 and 26.04.
 
-## Important Pterodactyl limitation
+- Alpine container + PRoot user-space root filesystem
+- Root SSH through Dropbear on Pterodactyl `SERVER_PORT`
+- SSH auth modes: `key`, `password`, `both`
+- Version selected through Egg variable `UBUNTU_VERSION`
+- amd64 and arm64 multi-platform image build
 
-Wings starts server containers with its configured non-root UID/GID. The Egg cannot override this per server. Therefore this package intentionally provides SSH as the unprivileged `container` account, not as root. It does not use `--privileged`, Docker socket access, or host-root escalation.
+## Import
+Import `egg-ubuntu-vps-multiversion.json` in Admin > Nests > Import Egg.
+The Docker image is `ghcr.io/noniko9901/ubuntu-server-pterodactyl:latest`.
 
-The image uses public-key SSH authentication. Password authentication is intentionally not enabled: the standard non-root Pterodactyl runtime cannot safely change/read shadow credentials as root would.
+## Configure
+Set `UBUNTU_VERSION` to 20.04 / 22.04 / 24.04 / 26.04.
+Set `SSH_AUTH_MODE` and its required password/key variables.
+Assign a primary TCP allocation; Wings provides `SERVER_PORT`.
 
-## Build and publish
+Connect: `ssh root@SERVER_IP -p SERVER_PORT`.
 
-The included GitHub Actions workflow publishes:
-`ghcr.io/<OWNER>/<REPOSITORY>:latest`
-
-Make the GHCR package public, or configure registry credentials in Wings.
-
-## Egg import
-
-Import `egg-ubuntu-24.04-dropbear.json` in Admin > Nests > Import Egg.
-
-Set the Egg Docker image to:
-`ghcr.io/<OWNER>/<REPOSITORY>:latest`
-
-Create a server, assign its primary allocation, and set `SSH_PUBLIC_KEY` to the full public key (for example the contents of `id_ed25519.pub`). `SERVER_PORT` is supplied by Wings from the primary allocation.
-
-Connect with:
-`ssh container@SERVER_IP -p SERVER_PORT`
-
-Dropbear does not provide an SFTP subsystem. Use the Pterodactyl file manager or SCP legacy mode if supported by your client (`scp -O`).
-
-## Add packages
-
-Add required packages to the Dockerfile and rebuild/push the image. Installing packages interactively with apt is not available in the standard unprivileged runtime.
+## Limitations and security
+This is a PRoot user-space environment, not a VM: it shares the host kernel and does not provide systemd/kernel modules or full VM isolation. Root is emulated inside PRoot and must not be treated as host root. Dropbear is used; SFTP is not provided by Dropbear. Use `scp -O` or Pterodactyl file manager.
+Ubuntu 20.04 standard support has ended; use Ubuntu Pro/ESM or prefer newer LTS releases.
+Review/test the cloud-image URLs and image startup on your target architecture before production use. Never expose password SSH with a weak password.

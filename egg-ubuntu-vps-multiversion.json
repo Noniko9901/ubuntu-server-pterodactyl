@@ -1,0 +1,67 @@
+{
+  "meta": {
+    "version": "PTDL_v2",
+    "update_url": null
+  },
+  "exported_at": "2026-11-16T00:00:00+00:00",
+  "name": "Ubuntu VPS Multi-Version",
+  "author": "noniko9901@gmail.com",
+  "description": "Ubuntu 20.04, 22.04, 24.04 or 26.04 in PRoot with root SSH on the primary allocation port.",
+  "features": null,
+  "docker_images": {
+    "Ubuntu VPS": "ghcr.io/noniko9901/ubuntu-server-pterodactyl:latest"
+  },
+  "file_denylist": [],
+  "startup": "/bin/sh /entrypoint.sh",
+  "config": {
+    "files": "{}",
+    "startup": "{\"done\":\"Starting root SSH on SERVER_PORT\"}",
+    "logs": "{}",
+    "stop": "^C"
+  },
+  "scripts": {
+    "installation": {
+      "script": "#!/bin/bash\nmkdir -p /mnt/server\n",
+      "container": "alpine:3.23",
+      "entrypoint": "sh"
+    }
+  },
+  "variables": [
+    {
+      "name": "Ubuntu version",
+      "description": "Select the Ubuntu root filesystem installed at first start.",
+      "env_variable": "UBUNTU_VERSION",
+      "default_value": "24.04",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:20.04,22.04,24.04,26.04"
+    },
+    {
+      "name": "SSH authentication",
+      "description": "Select password, key, or both. Both requires both variables.",
+      "env_variable": "SSH_AUTH_MODE",
+      "default_value": "key",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "required|in:key,password,both"
+    },
+    {
+      "name": "SSH password",
+      "description": "Strong root SSH password. Required for password/both mode.",
+      "env_variable": "SSH_PASSWORD",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:128"
+    },
+    {
+      "name": "SSH public key",
+      "description": "Full public key line. Required for key/both mode.",
+      "env_variable": "SSH_PUBLIC_KEY",
+      "default_value": "",
+      "user_viewable": true,
+      "user_editable": true,
+      "rules": "nullable|string|max:4096"
+    }
+  ]
+}
