@@ -46,7 +46,15 @@ echo "Download completed."
 
 mkdir -p "$ROOTFS"
 
-tar -xJf "$TMP" -C "$ROOTFS"
+tar -xJf "$TMP" -C "$ROOTFS" \
+  --exclude='./dev/*' \
+  --exclude='dev/*' \
+  --exclude='./proc/*' \
+  --exclude='proc/*' \
+  --exclude='./sys/*' \
+  --exclude='sys/*' \
+  --exclude='./run/*' \
+  --exclude='run/*'
 
 rm -f "$TMP"
 
