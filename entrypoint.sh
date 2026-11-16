@@ -2,19 +2,14 @@
 #!/bin/sh
 set -eu
 
-# ==========================================
-# Ubuntu Multi-Version Pterodactyl
-# SSH + Interactive Panel Console
-# ==========================================
-
 echo "=========================================="
-echo "       UBUNTU VPS STARTUP"
+echo "          UBUNTU VPS STARTUP"
 echo "=========================================="
 
 # Pterodactyl variables
 : "${SERVER_PORT:?SERVER_PORT is required}"
 : "${UBUNTU_VERSION:=24.04}"
-: "${SSH_AUTH_MODE:=key}"
+: "${SSH_AUTH_MODE:=password}"
 : "${SSH_PASSWORD:=}"
 : "${SSH_PUBLIC_KEY:=}"
 
@@ -32,7 +27,7 @@ case "$UBUNTU_VERSION" in
 esac
 
 # ==========================================
-# Validate SSH port
+# Validate port
 # ==========================================
 
 case "$SERVER_PORT" in
@@ -43,47 +38,47 @@ case "$SERVER_PORT" in
 esac
 
 if [ "$SERVER_PORT" -lt 1 ] || [ "$SERVER_PORT" -gt 65535 ]; then
-    echo "ERROR: SERVER_PORT must be between 1 and 65535"
+    echo "ERROR: Invalid SSH port"
     exit 1
 fi
 
 # ==========================================
-# Validate SSH authentication
+# Validate authentication mode
 # ==========================================
 
 case "$SSH_AUTH_MODE" in
-    key)
-        [ -n "$SSH_PUBLIC_KEY" ] || {
-            echo "ERROR: SSH_PUBLIC_KEY is required"
+    password)
+        [ -n "$SSH_PASSWORD" ] || {
+            echo "ERROR: SSH_PASSWORD is empty"
             exit 1
         }
         ;;
-    password)
-        [ -n "$SSH_PASSWORD" ] || {
-            echo "ERROR: SSH_PASSWORD is required"
+    key)
+        [ -n "$SSH_PUBLIC_KEY" ] || {
+            echo "ERROR: SSH_PUBLIC_KEY is empty"
             exit 1
         }
         ;;
     both)
         [ -n "$SSH_PASSWORD" ] && [ -n "$SSH_PUBLIC_KEY" ] || {
-            echo "ERROR: SSH_PASSWORD and SSH_PUBLIC_KEY are required"
+            echo "ERROR: Password and public key are required"
             exit 1
         }
         ;;
     *)
-        echo "ERROR: SSH_AUTH_MODE must be key, password or both"
+        echo "ERROR: SSH_AUTH_MODE must be password, key or both"
         exit 1
         ;;
 esac
 
 # ==========================================
-# Find PRoot
+# Locate PRoot
 # ==========================================
 
 PROOT="$(command -v proot || true)"
 
 if [ -z "$PROOT" ] || [ ! -x "$PROOT" ]; then
-    echo "ERROR: PRoot is not installed!"
+    echo "ERROR: PRoot not found"
     exit 1
 fi
 
@@ -93,22 +88,25 @@ echo "PRoot found: $PROOT"
 # Ubuntu root filesystem
 # ==========================================
 
-ROOTFS="$HOME/ubuntu-rootfs"
+ROOTFS="/home/container/ubuntu-rootfs"
 
-mkdir -p "$HOME"
+mkdir -p /home/container
 
 if [ ! -f "$ROOTFS/.ptero-ubuntu-version" ] || \
    [ "$(cat "$ROOTFS/.ptero-ubuntu-version")" != "$UBUNTU_VERSION" ]; then
 
-    echo "Installing Ubuntu ${UBUNTU_VERSION}..."
+    echo "Installing Ubuntu $UBUNTU_VERSION..."
 
     rm -rf "$ROOTFS"
 
     /install-ubuntu.sh "$UBUNTU_VERSION" "$ROOTFS"
+
+    mkdir -p "$ROOTFS"
+    printf '%s\n' "$UBUNTU_VERSION" > "$ROOTFS/.ptero-ubuntu-version"
 fi
 
 if [ ! -x "$ROOTFS/bin/bash" ]; then
-    echo "ERROR: Ubuntu bash not found!"
+    echo "ERROR: Ubuntu bash not found"
     exit 1
 fi
 
@@ -134,18 +132,13 @@ echo "Ubuntu rootfs: $ROOTFS"
 # Install Dropbear
 # ==========================================
 
-echo "Checking SSH server..."
-
 if [ ! -x "$ROOTFS/usr/sbin/dropbear" ]; then
     echo "Installing Dropbear..."
 
     ubuntu /usr/bin/env DEBIAN_FRONTEND=noninteractive \
         /bin/bash -c '
             apt-get update
-            apt-get install -y --no-install-recommends \
-                dropbear \
-                ca-certificates \
-                passwd
+            apt-get install -y --no-install-recommends dropbear passwd
             rm -rf /var/lib/apt/lists/*
         '
 fi
@@ -161,7 +154,6 @@ if [ "$SSH_AUTH_MODE" = "password" ] || \
 
     printf 'root:%s\n' "$SSH_PASSWORD" | ubuntu /usr/sbin/chpasswd
 else
-    echo "Password authentication disabled."
     ubuntu /usr/bin/passwd -l root >/dev/null 2>&1 || true
 fi
 
@@ -169,7 +161,9 @@ fi
 # Configure SSH public key
 # ==========================================
 
-if [ -n "$SSH_PUBLIC_KEY" ]; then
+if [ "$SSH_AUTH_MODE" = "key" ] || \
+   [ "$SSH_AUTH_MODE" = "both" ]; then
+
     echo "Configuring SSH public key..."
 
     mkdir -p "$ROOTFS/root/.ssh"
@@ -182,25 +176,28 @@ if [ -n "$SSH_PUBLIC_KEY" ]; then
 fi
 
 # ==========================================
-# Generate SSH host key
+# Generate RSA SSH host key
 # ==========================================
+
+echo "Checking SSH host key..."
 
 mkdir -p "$ROOTFS/etc/dropbear"
 
-if [ ! -s "$ROOTFS/etc/dropbear/dropbear_ed25519_host_key" ]; then
-    echo "Generating SSH host key..."
+if [ ! -s "$ROOTFS/etc/dropbear/dropbear_rsa_host_key" ]; then
+    echo "Generating RSA SSH host key..."
 
     ubuntu /usr/bin/dropbearkey \
-        -t ed25519 \
-        -f /etc/dropbear/dropbear_ed25519_host_key
+        -t rsa \
+        -s 3072 \
+        -f /etc/dropbear/dropbear_rsa_host_key
 fi
 
 # ==========================================
-# Check SSH executable
+# Verify Dropbear
 # ==========================================
 
 if [ ! -x "$ROOTFS/usr/sbin/dropbear" ]; then
-    echo "ERROR: Dropbear executable not found!"
+    echo "ERROR: Dropbear executable not found"
     exit 1
 fi
 
@@ -224,7 +221,7 @@ if [ "$SSH_AUTH_MODE" = "key" ]; then
         -F \
         -E \
         -p "$SERVER_PORT" \
-        -r /etc/dropbear/dropbear_ed25519_host_key \
+        -r /etc/dropbear/dropbear_rsa_host_key \
         -s &
 
 else
@@ -241,7 +238,7 @@ else
         -F \
         -E \
         -p "$SERVER_PORT" \
-        -r /etc/dropbear/dropbear_ed25519_host_key &
+        -r /etc/dropbear/dropbear_rsa_host_key &
 
 fi
 
@@ -250,9 +247,9 @@ SSH_PID=$!
 sleep 2
 
 if ! kill -0 "$SSH_PID" 2>/dev/null; then
-    echo "WARNING: SSH process exited. Check Dropbear logs."
+    echo "WARNING: SSH process may have exited"
 else
-    echo "SSH process started. PID: $SSH_PID"
+    echo "SSH process started: $SSH_PID"
 fi
 
 # ==========================================
@@ -261,18 +258,19 @@ fi
 
 echo ""
 echo "=========================================="
-echo "          UBUNTU VPS READY"
+echo "           UBUNTU VPS READY"
 echo "=========================================="
-echo "Ubuntu version: $UBUNTU_VERSION"
-echo "Console user: root"
+echo "Ubuntu: $UBUNTU_VERSION"
 echo "SSH user: root"
 echo "SSH port: $SERVER_PORT"
 echo "Authentication: $SSH_AUTH_MODE"
 echo "=========================================="
+echo ""
+echo "Starting Ubuntu panel terminal..."
 
 export TERM="${TERM:-xterm-256color}"
+export HOME=/root
 
-# Start interactive Ubuntu shell
 exec "$PROOT" \
     -0 \
     -r "$ROOTFS" \
